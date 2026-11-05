@@ -46,14 +46,14 @@ API Gateway (REST)
 
 ## Stack choices
 
-| Decision | Choice | Why |
-|----------|--------|-----|
-| Language | Python | Matches your existing projects |
-| IaC | CDK (Python) | Infra as code, reviewable on GitHub |
-| Compute | Lambda | Serverless, no servers to manage |
-| Queue | SQS | Native Lambda trigger, DLQ built-in |
-| Database | DynamoDB | Schemaless, serverless, fast reads |
-| Auth | API Gateway API key | Simple, visible, no Cognito overhead |
+| Decision | Choice |
+|----------|--------|
+| Language | Python |
+| IaC | CDK (Python) |
+| Compute | Lambda |
+| Queue | SQS |
+| Database | DynamoDB |
+| Auth | API Gateway API key |
 
 ---
 
