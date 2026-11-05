@@ -6,14 +6,19 @@ See [ROADMAP.md](ROADMAP.md) for the implementation milestones.
 
 ## Local setup
 
-Install Python 3.12, Node.js 22, and pnpm. From the project directory in PowerShell, run:
+Install Python 3.12 and Node.js 22 with npm. Install the AWS CDK CLI globally once:
+
+```powershell
+npm install --global aws-cdk@2.1148.0
+```
+
+From the project directory in PowerShell, activate the Python virtual environment and synthesize:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-pnpm install --frozen-lockfile
-pnpm exec cdk synth --strict --no-lookups
+cdk synth --strict --no-lookups
 ```
 
 On macOS or Linux, activate the virtual environment with `source .venv/bin/activate`.

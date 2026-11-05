@@ -1,2 +1,0 @@
-minimumReleaseAgeExclude:
-  - aws-cdk@2.1148.0
