@@ -7,3 +7,4 @@ cdk.out/
 node_modules/
 .pnpm-store/
 /AGENTS.md
+/ROADMAP.md

@@ -2,7 +2,6 @@
 
 CloudQueue is a serverless job queue built with Python and AWS CDK. The goal is to let clients
 submit work, let a worker process it in the background, and let clients check its status later.
-See [ROADMAP.md](ROADMAP.md) for the implementation milestones.
 
 ## Local setup
 
