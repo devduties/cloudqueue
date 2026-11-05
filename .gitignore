@@ -1,0 +1,8 @@
+.venv/
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+cdk.out/
+node_modules/
+.pnpm-store/
