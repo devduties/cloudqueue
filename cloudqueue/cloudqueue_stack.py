@@ -4,6 +4,7 @@ from aws_cdk import Duration, RemovalPolicy, Stack
 from aws_cdk import aws_apigateway as apigateway
 from aws_cdk import aws_dynamodb as dynamodb
 from aws_cdk import aws_lambda as lambda_
+from aws_cdk import aws_lambda_event_sources as event_sources
 from aws_cdk import aws_logs as logs
 from aws_cdk import aws_sqs as sqs
 from constructs import Construct
@@ -25,6 +26,7 @@ class CloudQueueStack(Stack):
             self,
             "JobsQueue",
             encryption=sqs.QueueEncryption.SQS_MANAGED,
+            visibility_timeout=Duration.seconds(90),
             removal_policy=RemovalPolicy.DESTROY,
         )
         submit_logs = logs.LogGroup(
@@ -33,15 +35,16 @@ class CloudQueueStack(Stack):
             retention=logs.RetentionDays.ONE_WEEK,
             removal_policy=RemovalPolicy.DESTROY,
         )
+        lambda_code = lambda_.Code.from_asset(
+            str(Path(__file__).resolve().parents[1] / "lambda"),
+            exclude=["__pycache__", "**/__pycache__"],
+        )
         submit_job = lambda_.Function(
             self,
             "SubmitJob",
             runtime=lambda_.Runtime.PYTHON_3_12,
             handler="submit_handler.handler",
-            code=lambda_.Code.from_asset(
-                str(Path(__file__).resolve().parents[1] / "lambda"),
-                exclude=["__pycache__", "**/__pycache__"],
-            ),
+            code=lambda_code,
             timeout=Duration.seconds(20),
             log_group=submit_logs,
             environment={
@@ -52,6 +55,32 @@ class CloudQueueStack(Stack):
         submit_job.apply_removal_policy(RemovalPolicy.DESTROY)
         self.jobs_table.grant(submit_job, "dynamodb:PutItem", "dynamodb:UpdateItem")
         self.jobs_queue.grant(submit_job, "sqs:SendMessage")
+
+        worker_logs = logs.LogGroup(
+            self,
+            "WorkerLogs",
+            retention=logs.RetentionDays.ONE_WEEK,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+        worker = lambda_.Function(
+            self,
+            "Worker",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="worker_handler.handler",
+            code=lambda_code,
+            timeout=Duration.seconds(15),
+            log_group=worker_logs,
+            environment={"JOBS_TABLE_NAME": self.jobs_table.table_name},
+        )
+        worker.apply_removal_policy(RemovalPolicy.DESTROY)
+        self.jobs_table.grant(worker, "dynamodb:GetItem", "dynamodb:UpdateItem")
+        worker.add_event_source(
+            event_sources.SqsEventSource(
+                self.jobs_queue,
+                batch_size=1,
+                report_batch_item_failures=True,
+            )
+        )
 
         api = apigateway.RestApi(self, "JobsApi", cloud_watch_role=False)
         api.apply_removal_policy(RemovalPolicy.DESTROY)

@@ -30,7 +30,10 @@ For future deployment, select an AWS CLI profile that targets your project's ass
 with the job ID and `PENDING` status. M3 accepts unsigned requests. API key support is planned
 for M7. The payload can contain up to 399 KiB of UTF-8 text.
 
-Run the submission tests from the activated virtual environment:
+The SQS worker claims queued jobs, simulates one second of work, and updates their status to
+`DONE`. If processing fails, the worker records `FAILED` and returns the message for retry.
+
+Run the submission and worker tests from the activated virtual environment:
 
 ```powershell
 python -m pip install -r requirements-dev.txt
