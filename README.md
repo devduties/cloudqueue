@@ -23,3 +23,16 @@ cdk synth --strict --no-lookups
 On macOS or Linux, activate the virtual environment with `source .venv/bin/activate`.
 Synthesis writes the CloudFormation template to `cdk.out/` and runs without deploying resources.
 For future deployment, select an AWS CLI profile that targets your project's assigned Region.
+
+## Job submission
+
+`POST /jobs` takes a JSON body such as `{"payload": "example"}` and returns HTTP `202`
+with the job ID and `PENDING` status. M3 accepts unsigned requests. API key support is planned
+for M7. The payload can contain up to 399 KiB of UTF-8 text.
+
+Run the submission tests from the activated virtual environment:
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m pytest
+```
