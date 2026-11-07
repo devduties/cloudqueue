@@ -33,7 +33,10 @@ can contain up to 399 KiB of UTF-8 text.
 The SQS worker claims queued jobs and marks them `DONE` when processing succeeds. If processing
 fails, the worker records `FAILED` and returns the message for retry.
 
-Run the submission and worker tests from the activated virtual environment:
+Poll `GET /jobs/{job_id}` for the job ID, current status, and timestamps. A valid ID with no
+matching job returns HTTP `404`.
+
+Run the tests from the activated virtual environment:
 
 ```powershell
 python -m pip install -r requirements-dev.txt

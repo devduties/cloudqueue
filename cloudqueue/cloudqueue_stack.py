@@ -84,8 +84,33 @@ class CloudQueueStack(Stack):
 
         api = apigateway.RestApi(self, "JobsApi", cloud_watch_role=False)
         api.apply_removal_policy(RemovalPolicy.DESTROY)
-        api.root.add_resource("jobs").add_method(
+        jobs_resource = api.root.add_resource("jobs")
+        jobs_resource.add_method(
             "POST",
             apigateway.LambdaIntegration(submit_job),
+            authorization_type=apigateway.AuthorizationType.NONE,
+        )
+
+        status_logs = logs.LogGroup(
+            self,
+            "JobStatusLogs",
+            retention=logs.RetentionDays.ONE_WEEK,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+        job_status = lambda_.Function(
+            self,
+            "JobStatus",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="status_handler.handler",
+            code=lambda_code,
+            timeout=Duration.seconds(15),
+            log_group=status_logs,
+            environment={"JOBS_TABLE_NAME": self.jobs_table.table_name},
+        )
+        job_status.apply_removal_policy(RemovalPolicy.DESTROY)
+        self.jobs_table.grant(job_status, "dynamodb:GetItem")
+        jobs_resource.add_resource("{job_id}").add_method(
+            "GET",
+            apigateway.LambdaIntegration(job_status),
             authorization_type=apigateway.AuthorizationType.NONE,
         )
