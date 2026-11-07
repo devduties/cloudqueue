@@ -38,8 +38,12 @@ def make_job(table, status="PENDING", age=0, **attributes):
     return {"job_id": job_id}
 
 
-def message(key, message_id="message-1"):
-    return {"messageId": message_id, "body": json.dumps(key)}
+def message(key, message_id="message-1", receive_count=1):
+    return {
+        "messageId": message_id,
+        "body": json.dumps(key),
+        "attributes": {"ApproximateReceiveCount": str(receive_count)},
+    }
 
 
 def test_worker_claims_job_and_skips_duplicate_delivery(worker, monkeypatch):
@@ -55,9 +59,12 @@ def test_worker_claims_job_and_skips_duplicate_delivery(worker, monkeypatch):
     event = {"Records": [message(key)]}
 
     assert handler(event, None) == {"batchItemFailures": []}
-    assert handler(event, None) == {"batchItemFailures": []}
+    duplicate = {"Records": [message(key, receive_count=2)]}
+    assert handler(duplicate, None) == {"batchItemFailures": []}
     assert calls == [1]
-    assert table.get_item(Key=key)["Item"]["status"] == "DONE"
+    job = table.get_item(Key=key)["Item"]
+    assert job["status"] == "DONE"
+    assert job["retry_count"] == 0
 
 
 def test_work_failure_is_recorded_and_message_can_retry(worker, monkeypatch):
@@ -75,9 +82,12 @@ def test_work_failure_is_recorded_and_message_can_retry(worker, monkeypatch):
     job = table.get_item(Key=key)["Item"]
     assert job["status"] == "FAILED"
     assert job["error"] == "Job processing failed"
-    assert handler(event, None) == {"batchItemFailures": []}
+    assert job["retry_count"] == 0
+    retry = {"Records": [message(key, receive_count=2)]}
+    assert handler(retry, None) == {"batchItemFailures": []}
     job = table.get_item(Key=key)["Item"]
     assert job["status"] == "DONE"
+    assert job["retry_count"] == 1
     assert "error" not in job
 
 
@@ -98,6 +108,22 @@ def test_worker_only_reclaims_expired_claims(worker):
     assert table.get_item(Key=active)["Item"]["status"] == "PROCESSING"
     assert table.get_item(Key=expired)["Item"]["status"] == "DONE"
     assert table.get_item(Key=rejected)["Item"]["status"] == "FAILED"
+
+
+def test_third_failed_delivery_records_two_retries(worker, monkeypatch):
+    handler, table = worker
+    key = make_job(table)
+
+    def fail(seconds):
+        raise RuntimeError("simulated work failure")
+
+    monkeypatch.setitem(handler.__globals__, "sleep", fail)
+    for receive_count in (1, 2, 3):
+        event = {"Records": [message(key, receive_count=receive_count)]}
+        assert handler(event, None) == {"batchItemFailures": [{"itemIdentifier": "message-1"}]}
+        job = table.get_item(Key=key)["Item"]
+        assert job["status"] == "FAILED"
+        assert job["retry_count"] == receive_count - 1
 
 
 def test_bad_messages_do_not_block_valid_jobs(worker):

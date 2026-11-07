@@ -31,7 +31,9 @@ with the job ID and `PENDING` status. Requests don't require authentication yet.
 can contain up to 399 KiB of UTF-8 text.
 
 The SQS worker claims queued jobs and marks them `DONE` when processing succeeds. If processing
-fails, the worker records `FAILED` and returns the message for retry.
+fails, the worker records `FAILED` and returns the message for retry. SQS moves messages that
+remain unprocessed after three receives to a dead-letter queue. The jobs table records the
+retry count from the most recent delivery the worker claimed, starting at zero.
 
 Poll `GET /jobs/{job_id}` for the job ID, current status, and timestamps. A valid ID with no
 matching job returns HTTP `404`.

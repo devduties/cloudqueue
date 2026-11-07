@@ -22,11 +22,19 @@ class CloudQueueStack(Stack):
             removal_policy=RemovalPolicy.DESTROY,
         )
 
+        jobs_dlq = sqs.Queue(
+            self,
+            "JobsDeadLetterQueue",
+            encryption=sqs.QueueEncryption.SQS_MANAGED,
+            retention_period=Duration.days(14),
+            removal_policy=RemovalPolicy.DESTROY,
+        )
         self.jobs_queue = sqs.Queue(
             self,
             "JobsQueue",
             encryption=sqs.QueueEncryption.SQS_MANAGED,
             visibility_timeout=Duration.seconds(90),
+            dead_letter_queue=sqs.DeadLetterQueue(queue=jobs_dlq, max_receive_count=3),
             removal_policy=RemovalPolicy.DESTROY,
         )
         submit_logs = logs.LogGroup(

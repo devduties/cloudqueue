@@ -23,7 +23,7 @@ config = Config(
 jobs = boto3.resource("dynamodb", config=config).Table(os.environ["JOBS_TABLE_NAME"])
 
 
-def process_job(job_id):
+def process_job(job_id, retry_count):
     key = {"job_id": job_id}
     now = datetime.now(UTC)
     claim = now.isoformat(timespec="microseconds")
@@ -36,9 +36,16 @@ def process_job(job_id):
         jobs.update_item(
             Key=key,
             ConditionExpression=status.eq("PENDING") | retryable_failure | expired_claim,
-            UpdateExpression="SET #status = :processing, updated_at = :claim REMOVE #error",
+            UpdateExpression=(
+                "SET #status = :processing, updated_at = :claim, retry_count = :retry_count "
+                "REMOVE #error"
+            ),
             ExpressionAttributeNames={"#status": "status", "#error": "error"},
-            ExpressionAttributeValues={":processing": "PROCESSING", ":claim": claim},
+            ExpressionAttributeValues={
+                ":processing": "PROCESSING",
+                ":claim": claim,
+                ":retry_count": retry_count,
+            },
         )
     except jobs.meta.client.exceptions.ConditionalCheckFailedException:
         job = jobs.get_item(Key=key, ConsistentRead=True).get("Item", {})
@@ -86,7 +93,10 @@ def handler(event, context):
             job_id = json.loads(record["body"])["job_id"]
             if not isinstance(job_id, str) or not job_id:
                 raise ValueError("Expected a job ID")
-            if process_job(job_id):
+            receive_count = int(record.get("attributes", {}).get("ApproximateReceiveCount", "1"))
+            if receive_count < 1:
+                raise ValueError("Expected a positive SQS receive count")
+            if process_job(job_id, receive_count - 1):
                 continue
         except (BotoCoreError, ClientError, KeyError, TypeError, ValueError, RecursionError):
             logger.exception(
