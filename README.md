@@ -1,9 +1,9 @@
-# CloudQueue
+﻿# CloudQueue
 
 [![CI](https://github.com/devduties/cloudqueue/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/devduties/cloudqueue/actions/workflows/ci.yml)
 
 CloudQueue is a serverless job queue built with Python and AWS CDK. Clients submit work,
-an SQS worker processes it in the background, and clients can check its status later.
+a worker processes it in the background, and clients can check its status later.
 
 ## Architecture
 
@@ -19,7 +19,7 @@ Client (x-api-key) -> API Gateway
 
 ## Local setup
 
-Install Python 3.12 and Node.js 22 with npm. Install the AWS CDK CLI globally once:
+Install Python 3.12 and Node.js 22. Install the AWS CDK CLI globally once:
 
 ```powershell
 npm install --global aws-cdk@2.1148.0
@@ -34,20 +34,18 @@ python -m pip install -r requirements.txt
 cdk synth --strict --no-lookups
 ```
 
-On macOS or Linux, activate the virtual environment with `source .venv/bin/activate`.
-Synthesis writes the CloudFormation template to `cdk.out/` and runs without deploying resources.
+On macOS or Linux, activate the virtual environment with ``source .venv/bin/activate``.
 
 ## Deploy
 
-Confirm the project's selected Region in AWS Settings under **View all projects → Overview →
-Additional Info → Region**. Use an authenticated AWS CLI profile for that Region. Replace
-`my-profile` with its name and bootstrap once if the target has not been bootstrapped:
+Confirm your AWS Region in AWS Settings under **View all projects → Overview →
+Additional Info → Region**. Run this once per account before your first deploy:
 
 ```powershell
 cdk bootstrap --profile my-profile
 ```
 
-Synthesize, review the diff, and then deploy:
+Then synthesize, review the diff, and deploy:
 
 ```powershell
 cdk synth --strict --no-lookups --profile my-profile
@@ -57,22 +55,21 @@ cdk deploy --profile my-profile
 
 ## Job submission
 
-`POST /jobs` takes a JSON body such as `{"payload": "example"}` and returns HTTP `202`
-with the job ID and `PENDING` status. The payload can contain up to 399 KiB of UTF-8 text.
+``POST /jobs`` takes a JSON body such as ``{"payload": "example"}`` and returns HTTP ``202``
+with the job ID and ``PENDING`` status. The payload can contain up to 399 KiB of UTF-8 text.
 
-The SQS worker claims queued jobs and marks them `DONE` when processing succeeds. If processing
-fails, the worker records `FAILED` and returns the message for retry. SQS moves messages that
-remain unprocessed after three receives to a dead-letter queue. The jobs table records the
-retry count from the most recent delivery the worker claimed, starting at zero.
+The worker claims queued jobs and marks them ``DONE`` when processing succeeds. If processing
+fails, the worker records ``FAILED`` and returns the message for retry. Jobs that fail three
+times are moved to a dead-letter queue.
 
-Poll `GET /jobs/{job_id}` for the job ID, current status, and timestamps. A valid ID with no
-matching job returns HTTP `404`.
+Poll ``GET /jobs/{job_id}`` for the job ID, current status, and timestamps. A valid ID with no
+matching job returns HTTP ``404``.
 
-Both routes require the `x-api-key` header. After deploying, find `JobsApiKeyId` in the
-CloudFormation stack outputs. In the API Gateway console, open **API keys** and select that ID
-to reveal the key value. Send the value in `x-api-key` and keep it out of source control.
+Both routes require the ``x-api-key`` header. After deploying, find ``JobsApiKeyId`` in the
+stack outputs. In the API Gateway console, open **API keys** and select that ID to reveal
+the key value. Send the value in ``x-api-key`` and keep it out of source control.
 
-API keys identify clients for the usage plan. Anyone with the shared key can call either route.
+Anyone with the shared key can call either route.
 
 Run the tests from the activated virtual environment:
 
