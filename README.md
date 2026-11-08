@@ -1,7 +1,21 @@
 # CloudQueue
 
-CloudQueue is a serverless job queue built with Python and AWS CDK. The goal is to let clients
-submit work, let a worker process it in the background, and let clients check its status later.
+[![CI](https://github.com/devduties/cloudqueue/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/devduties/cloudqueue/actions/workflows/ci.yml)
+
+CloudQueue is a serverless job queue built with Python and AWS CDK. Clients submit work,
+an SQS worker processes it in the background, and clients can check its status later.
+
+## Architecture
+
+```text
+Client (x-api-key) -> API Gateway
+  POST /jobs          -> Submit Lambda -> DynamoDB (write job)
+                                       -> SQS jobs queue -> Worker Lambda
+                                              |                   |
+                                              v                   v
+                                        Dead-letter queue   DynamoDB (update status)
+  GET /jobs/{job_id}  -> Status Lambda -> DynamoDB (read status)
+```
 
 ## Local setup
 
@@ -22,7 +36,24 @@ cdk synth --strict --no-lookups
 
 On macOS or Linux, activate the virtual environment with `source .venv/bin/activate`.
 Synthesis writes the CloudFormation template to `cdk.out/` and runs without deploying resources.
-For future deployment, select an AWS CLI profile that targets your project's assigned Region.
+
+## Deploy
+
+Confirm the project's selected Region in AWS Settings under **View all projects → Overview →
+Additional Info → Region**. Use an authenticated AWS CLI profile for that Region. Replace
+`my-profile` with its name and bootstrap once if the target has not been bootstrapped:
+
+```powershell
+cdk bootstrap --profile my-profile
+```
+
+Synthesize, review the diff, and then deploy:
+
+```powershell
+cdk synth --strict --no-lookups --profile my-profile
+cdk diff --profile my-profile
+cdk deploy --profile my-profile
+```
 
 ## Job submission
 

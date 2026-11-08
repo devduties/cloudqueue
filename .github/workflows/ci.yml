@@ -1,0 +1,28 @@
+name: CI
+
+on: [push]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements-dev.txt
+          npm install --global aws-cdk@2.1148.0
+      - name: Run tests
+        run: python -m pytest
+      - name: Synthesize the stack
+        run: cdk synth --strict --no-lookups
