@@ -52,6 +52,56 @@ def test_submit_stores_and_enqueues_job(submit, payload, encoded):
     assert [json.loads(message["Body"]) for message in messages] == [{"job_id": job_id}]
 
 
+def test_submitted_job_status_through_worker_retry(submit, monkeypatch):
+    submit_job, table, sqs, queue_url = submit
+    handlers = Path(__file__).resolve().parents[1] / "lambda"
+    worker = runpy.run_path(str(handlers / "worker_handler.py"))["handler"]
+    status = runpy.run_path(str(handlers / "status_handler.py"))["handler"]
+
+    def receive():
+        message = sqs.receive_message(
+            QueueUrl=queue_url,
+            AttributeNames=["ApproximateReceiveCount"],
+            VisibilityTimeout=0,
+        )["Messages"][0]
+        return {
+            "messageId": message["MessageId"],
+            "body": message["Body"],
+            "attributes": message["Attributes"],
+        }
+
+    def fail_work(seconds):
+        raise RuntimeError("simulated work failure")
+
+    submitted = submit_job({"body": '{"payload": "example"}'}, None)
+    assert submitted["statusCode"] == 202
+    job_id = json.loads(submitted["body"])["job_id"]
+    request = {"pathParameters": {"job_id": job_id}}
+    pending = status(request, None)
+    assert pending["statusCode"] == 200
+    assert json.loads(pending["body"])["status"] == "PENDING"
+
+    first = receive()
+    with monkeypatch.context() as patch:
+        patch.setitem(worker.__globals__, "sleep", fail_work)
+        assert worker({"Records": [first]}, None) == {
+            "batchItemFailures": [{"itemIdentifier": first["messageId"]}]
+        }
+    failed = status(request, None)
+    assert failed["statusCode"] == 200
+    assert json.loads(failed["body"])["status"] == "FAILED"
+    assert "error" not in json.loads(failed["body"])
+
+    monkeypatch.setitem(worker.__globals__, "sleep", lambda seconds: None)
+    retry = receive()
+    assert retry["messageId"] == first["messageId"]
+    assert worker({"Records": [retry]}, None) == {"batchItemFailures": []}
+    done = status(request, None)
+    assert done["statusCode"] == 200
+    assert json.loads(done["body"])["status"] == "DONE"
+    assert table.get_item(Key={"job_id": job_id})["Item"]["retry_count"] == 1
+
+
 @pytest.mark.parametrize(
     "event,expected_status",
     [
