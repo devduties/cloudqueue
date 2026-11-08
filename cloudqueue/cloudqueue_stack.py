@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from aws_cdk import Duration, RemovalPolicy, Stack
+from aws_cdk import CfnOutput, Duration, RemovalPolicy, Stack
 from aws_cdk import aws_apigateway as apigateway
 from aws_cdk import aws_dynamodb as dynamodb
 from aws_cdk import aws_lambda as lambda_
@@ -97,6 +97,7 @@ class CloudQueueStack(Stack):
             "POST",
             apigateway.LambdaIntegration(submit_job),
             authorization_type=apigateway.AuthorizationType.NONE,
+            api_key_required=True,
         )
 
         status_logs = logs.LogGroup(
@@ -121,4 +122,13 @@ class CloudQueueStack(Stack):
             "GET",
             apigateway.LambdaIntegration(job_status),
             authorization_type=apigateway.AuthorizationType.NONE,
+            api_key_required=True,
         )
+
+        api_key = apigateway.ApiKey(self, "JobsApiKey", description="CloudQueue client key")
+        api_key.apply_removal_policy(RemovalPolicy.DESTROY)
+        usage_plan = api.add_usage_plan("JobsUsagePlan")
+        usage_plan.apply_removal_policy(RemovalPolicy.DESTROY)
+        usage_plan.add_api_stage(stage=api.deployment_stage)
+        usage_plan.add_api_key(api_key)
+        CfnOutput(self, "JobsApiKeyId", value=api_key.key_id)
